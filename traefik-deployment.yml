@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: default
+  name: traefik-ingress-controller
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  namespace: default
+  name: traefik
+  labels:
+    app: traefik
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+    spec:
+      serviceAccountName: traefik-ingress-controller
+      volumes:
+        - name: traefik-storage
+          persistentVolumeClaim:
+            claimName: traefik-pvc
+      containers:
+        - name: traefik
+          image: traefik:2.2.8
+          volumeMounts:
+            - mountPath: "/data"
+              name: traefik-storage
+          args:
+            - --global.checknewversion
+            - --global.sendanonymoususage
+            - --api.dashboard=true
+            - --log.level=DEBUG
+            - --entryPoints.web.address=:8000
+            - --entryPoints.traefik.address=:8080
+            - --entryPoints.websecure.address=:8443
+            - --ping=true
+            - --providers.kubernetescrd
+            - --providers.kubernetesingress
+            - --certificatesresolvers.default.acme.email=rajith1729@gmail.com
+            - --certificatesresolvers.default.acme.storage=/data/acme.json
+            - --certificatesresolvers.default.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+            - --certificatesresolvers.default.acme.dnschallenge=true
+            - --certificatesresolvers.default.acme.dnschallenge.provider=godaddy
+            - --serversTransport.forwardingTimeouts.dialTimeout=0
+            - --serversTransport.forwardingTimeouts.responseHeaderTimeout=0"
+            - --serversTransport.forwardingTimeouts.idleConnTimeout=0
+          ports:
+            - name: web
+              containerPort: 8000
+            - name: admin
+              containerPort: 8080
+            - name: websecure
+              containerPort: 8443
+          env:
+            - name: GODADDY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-auth
+                  key: GODADDY_API_KEY
+            - name: GODADDY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: traefik-auth
+                  key: GODADDY_API_SECRET
